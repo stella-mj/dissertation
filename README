@@ -1,0 +1,13 @@
+Setting Up your Notebook to run in WSL-
+
+WSL should be in corner of VSCode. If not, from powershell, run 
+wsl.exe -d Ubuntu
+
+with username stella-mj and password ***********
+
+Navigate to /dissertation directory
+
+Environment:
+diss_venv, activate with 
+source ~/diss_venv/bin/activate
+
