@@ -1,5 +1,8 @@
 from datetime import datetime
+import os
+from pathlib import Path
 import sys
+import time
 import numpy as np
 import torch
 from torchvision import utils, transforms
@@ -29,15 +32,19 @@ def make_grid(images, size=64):
         output_im.paste(im.resize((size, size)), (i * size, 0))
     return output_im
 
-def save_images(x):
+def save_images(x, loop_count):
     for i in range(x.shape[0]):
         img = x[i] * 0.5 + 0.5  # Map from (-1, 1) back to (0, 1)
         img = img.detach().cpu().permute(1, 2, 0).clip(0, 1) * 255
         img = Image.fromarray(np.array(img).astype(np.uint8))
         
-        img.save(f'output_images/image_{i:03d}.png')
+        try:
+            os.mkdir(f'output_images_{loop_count}')
+        except:
+            pass
+        img.save(f'output_images_{loop_count}/image_{i:03d}.png')
 
-def transform_data(images):
+def transform(images):
     preprocess = transforms.Compose(
     [
         transforms.Resize((image_size, image_size)),  # Resize
@@ -51,9 +58,9 @@ def transform_data(images):
     return {"images": images}
 
 def load_data(folder_path: str) -> torch.utils.data.DataLoader:
-    dataset = load_dataset("imagefolder", data_dir=folder_path)
+    dataset = load_dataset("imagefolder", data_dir=folder_path, split="train")
 
-    dataset.set_transform(transform_data)
+    dataset.set_transform(transform)
 
     train_dataloader = torch.utils.data.DataLoader(
         dataset, batch_size, shuffle=True
@@ -82,6 +89,7 @@ def define_model() -> UNet2DModel:
         ),
     )
     model.to(device)
+    return model
 
 def train_model(model, train_dataloader, noise_scheduler):
     optimizer = torch.optim.AdamW(model.parameters(), lr=4e-4)
@@ -119,8 +127,8 @@ def train_model(model, train_dataloader, noise_scheduler):
             loss_last_epoch = sum(losses[-len(train_dataloader) :]) / len(train_dataloader)
             print(f"Epoch:{epoch+1}, loss: {loss_last_epoch}, time: {datetime.now()}")
 
-def sample_model(model, noise_scheduler):
-    sample = torch.randn(8, 3, image_size, image_size).to(device)
+def sample_model(model, noise_scheduler, loop_count):
+    sample = torch.randn(1000, 3, image_size, image_size).to(device)
 
     for i, t in enumerate(noise_scheduler.timesteps):
 
@@ -131,19 +139,32 @@ def sample_model(model, noise_scheduler):
         # Update sample with step
         sample = noise_scheduler.step(residual, t, sample).prev_sample
 
-        save_images(sample)
+        save_images(sample, loop_count)
+
+def check_image_sample(data_loader):
+    xb = next(iter(data_loader))["images"].to(device)[:8]
+    print("X shape:", xb.shape)
+    print(show_images(xb).resize((8 * 64, 64), resample=Image.NEAREST))
+
 
 def main():
     """
     While dataset.entropy() > baseline and mutual_info(dataset_{t-1}, dataset_{t}) > baseline,
     """
-    loop_count: int = 0
-    folder_path: str = f"output_images/loop_{loop_count}"
-    data_loader = load_data(folder_path)
+    loop_count: int = 2
 
     noise_scheduler = DDPMScheduler(num_train_timesteps=4000, beta_schedule="squaredcos_cap_v2")
     model = define_model()
-    sample_model(model, noise_scheduler)
+
+    while loop_count < 11: # 10 loops
+        folder_path: str = f"src/output_images_{loop_count - 1}"
+        while not os.path.exists(folder_path):
+            time.sleep(144000)
+            data_loader = load_data(folder_path)
+            check_image_sample(data_loader)
+            trained_model = train_model(model, data_loader, noise_scheduler)
+            sample_model(trained_model, noise_scheduler, loop_count)
+            loop_count += 1
 
 
 if len(sys.argv) !=4:
