@@ -1,6 +1,0 @@
-torch
-numpy==2.4.1
-torchvision==0.25.0
-matplotlib
-datasets==4.5.0
-diffusers==0.36.0

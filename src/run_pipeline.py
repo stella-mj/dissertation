@@ -42,13 +42,30 @@ def save_images(x, loop_count: int):
     except:
         print("Directory not made.")
         pass
-    print(len(x))
+
     for i, img in enumerate(x):
         # img_tensor = to_tensor(img) * 0.5 + 0.5
         # rescaled_img = to_pil(img_tensor)
 
         # rescaled_img.save(f'output_images_{loop_count}/image_{i:03d}.png')
         img.save(f'output_images_{loop_count}/image_{i:03d}.png')
+
+
+def save_images_from_tensors(x, loop_count: int) -> None:
+    to_pil = transforms.ToPILImage()
+    try:
+        os.mkdir(f'output_images_{loop_count}')
+    except:
+        pass
+
+    for i in range(x.shape[0]):
+        img_tensor = x[i] * 0.5 + 0.5
+        img_tensor = torch.clamp(img_tensor, 0, 1)
+        pil_img = to_pil(img_tensor.cpu())
+        
+        pil_img.save(f'output_images_{loop_count}/image_{i:03d}.png')
+
+
 
 def transform(images):
     print(f"Image size: {image_size}")
@@ -154,7 +171,7 @@ def sample_model(model, noise_scheduler, loop_count):
         # Update sample with step
         sample = noise_scheduler.step(residual, t, sample).prev_sample
 
-        save_images(sample, loop_count)
+        save_images_from_tensors(sample, loop_count)
 
 def check_image_sample(data_loader):
     xb = next(iter(data_loader))["images"].to(device)[:8]
@@ -173,11 +190,12 @@ def main():
     data = load_data("")
     trained_model = train_model(model=model, train_dataloader=data, noise_scheduler=noise_scheduler)
 
-
-    image_pipe = DDPMPipeline(unet=trained_model, scheduler=noise_scheduler)
-    image_pipe.save_pretrained("pipeline_111")
-    pipeline_output = image_pipe()
-    save_images(pipeline_output.images, 111)
+    print("Generating 1000 images...")
+    sample_model(train_model, noise_scheduler, 111)
+    # image_pipe = DDPMPipeline(unet=trained_model, scheduler=noise_scheduler)
+    # image_pipe.save_pretrained("pipeline_111")
+    # pipeline_output = image_pipe()
+    # save_images(pipeline_output.images, 111)
 
     print("Run complete.")
 
