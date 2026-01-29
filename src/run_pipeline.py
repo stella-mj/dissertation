@@ -10,7 +10,7 @@ import torch.nn.functional as F
 from matplotlib import pyplot as plt
 from PIL import Image
 from datasets import load_dataset
-from diffusers import DDPMScheduler, UNet2DModel
+from diffusers import DDPMScheduler, UNet2DModel, DDPMPipeline
 
 image_size: int = 0
 batch_size: int = 0
@@ -32,17 +32,18 @@ def make_grid(images, size=64):
         output_im.paste(im.resize((size, size)), (i * size, 0))
     return output_im
 
-def save_images(x, loop_count):
-    for i in range(x.shape[0]):
-        img = x[i] * 0.5 + 0.5  # Map from (-1, 1) back to (0, 1)
-        img = img.detach().cpu().permute(1, 2, 0).clip(0, 1) * 255
-        img = Image.fromarray(np.array(img).astype(np.uint8))
-        
-        try:
-            os.mkdir(f'output_images_{loop_count}')
-        except:
-            pass
-        img.save(f'output_images_{loop_count}/image_{i:03d}.png')
+def save_images(x, loop_count: int):
+    try:
+        os.mkdir(f'output_images_{loop_count}')
+    except:
+        print("Directory not made")
+        pass
+    for img, i in enumerate(x):
+        img_tensor = transforms.ToTensor(img) * 0.5 + 0.5
+
+        rescaled_img = transforms.ToPILImage(img_tensor)
+    
+        rescaled_img.save(f'output_images_{loop_count}/image_{i:03d}.png')
 
 def transform(images):
     preprocess = transforms.Compose(
@@ -156,15 +157,21 @@ def main():
     noise_scheduler = DDPMScheduler(num_train_timesteps=4000, beta_schedule="squaredcos_cap_v2")
     model = define_model()
 
-    while loop_count < 11: # 10 loops
-        folder_path: str = f"src/output_images_{loop_count - 1}"
-        while not os.path.exists(folder_path):
-            time.sleep(144000)
-            data_loader = load_data(folder_path)
-            check_image_sample(data_loader)
-            trained_model = train_model(model, data_loader, noise_scheduler)
-            sample_model(trained_model, noise_scheduler, loop_count)
-            loop_count += 1
+    image_pipe = DDPMPipeline(unet=model, scheduler=noise_scheduler)
+    pipeline_output = image_pipe()
+    save_images(pipeline_output.images, 000)
+
+    print("Run complete.")
+
+    # while loop_count < 11: # 10 loops
+    #     folder_path: str = f"src/output_images_{loop_count - 1}"
+    #     while not os.path.exists(folder_path):
+    #         time.sleep(144000)
+    #         data_loader = load_data(folder_path)
+    #         check_image_sample(data_loader)
+    #         trained_model = train_model(model, data_loader, noise_scheduler)
+    #         sample_model(trained_model, noise_scheduler, loop_count)
+    #         loop_count += 1
 
 
 if len(sys.argv) !=4:
