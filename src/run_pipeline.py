@@ -33,19 +33,23 @@ def make_grid(images, size=64):
     return output_im
 
 def save_images(x, loop_count: int):
+
+    to_tensor = transforms.ToTensor()
+    to_pil = transforms.ToPILImage()
+
     try:
         os.mkdir(f'output_images_{loop_count}')
     except:
         print("Directory not made")
         pass
-    for img, i in enumerate(x):
-        img_tensor = transforms.ToTensor(img) * 0.5 + 0.5
+    for i, img in enumerate(x):
+        img_tensor = to_tensor(img) * 0.5 + 0.5
+        rescaled_img = to_pil(img_tensor)
 
-        rescaled_img = transforms.ToPILImage(img_tensor)
-    
         rescaled_img.save(f'output_images_{loop_count}/image_{i:03d}.png')
 
 def transform(images):
+    print(f"Image size: {image_size}")
     preprocess = transforms.Compose(
     [
         transforms.Resize((image_size, image_size)),  # Resize
@@ -59,7 +63,10 @@ def transform(images):
     return {"images": images}
 
 def load_data(folder_path: str) -> torch.utils.data.DataLoader:
-    dataset = load_dataset("imagefolder", data_dir=folder_path, split="train")
+    # dataset = load_dataset("imagefolder", data_dir=folder_path, split="train")
+    dataset = load_dataset("huggan/smithsonian_butterflies_subset", split="train")
+
+    print(f"Batch size: {batch_size}")
 
     dataset.set_transform(transform)
 
@@ -68,6 +75,9 @@ def load_data(folder_path: str) -> torch.utils.data.DataLoader:
     )
 
     return train_dataloader
+
+def define_scheduler() -> DDPMScheduler:
+    return DDPMScheduler(num_train_timesteps=4000, beta_schedule="squaredcos_cap_v2")
 
 def define_model() -> UNet2DModel:
     model = UNet2DModel(
@@ -92,7 +102,7 @@ def define_model() -> UNet2DModel:
     model.to(device)
     return model
 
-def train_model(model, train_dataloader, noise_scheduler):
+def train_model(model, train_dataloader, noise_scheduler) -> UNet2DModel:
     optimizer = torch.optim.AdamW(model.parameters(), lr=4e-4)
 
     losses = []
@@ -128,6 +138,8 @@ def train_model(model, train_dataloader, noise_scheduler):
             loss_last_epoch = sum(losses[-len(train_dataloader) :]) / len(train_dataloader)
             print(f"Epoch:{epoch+1}, loss: {loss_last_epoch}, time: {datetime.now()}")
 
+    return model
+
 def sample_model(model, noise_scheduler, loop_count):
     sample = torch.randn(1000, 3, image_size, image_size).to(device)
 
@@ -154,12 +166,15 @@ def main():
     """
     loop_count: int = 2
 
-    noise_scheduler = DDPMScheduler(num_train_timesteps=4000, beta_schedule="squaredcos_cap_v2")
+    noise_scheduler = define_scheduler()
     model = define_model()
+    data = load_data("")
+    trained_model = train_model(model=model, train_dataloader=data, noise_scheduler=noise_scheduler)
 
-    image_pipe = DDPMPipeline(unet=model, scheduler=noise_scheduler)
+
+    image_pipe = DDPMPipeline(unet=trained_model, scheduler=noise_scheduler)
     pipeline_output = image_pipe()
-    save_images(pipeline_output.images, 000)
+    save_images(pipeline_output.images, 111)
 
     print("Run complete.")
 
