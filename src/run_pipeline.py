@@ -40,13 +40,15 @@ def save_images(x, loop_count: int):
     try:
         os.mkdir(f'output_images_{loop_count}')
     except:
-        print("Directory not made")
+        print("Directory not made.")
         pass
+    print(len(x))
     for i, img in enumerate(x):
-        img_tensor = to_tensor(img) * 0.5 + 0.5
-        rescaled_img = to_pil(img_tensor)
+        # img_tensor = to_tensor(img) * 0.5 + 0.5
+        # rescaled_img = to_pil(img_tensor)
 
-        rescaled_img.save(f'output_images_{loop_count}/image_{i:03d}.png')
+        # rescaled_img.save(f'output_images_{loop_count}/image_{i:03d}.png')
+        img.save(f'output_images_{loop_count}/image_{i:03d}.png')
 
 def transform(images):
     print(f"Image size: {image_size}")
@@ -173,6 +175,7 @@ def main():
 
 
     image_pipe = DDPMPipeline(unet=trained_model, scheduler=noise_scheduler)
+    image_pipe.save_pretrained("pipeline_111")
     pipeline_output = image_pipe()
     save_images(pipeline_output.images, 111)
 
@@ -189,12 +192,11 @@ def main():
     #         loop_count += 1
 
 
-if len(sys.argv) !=4:
-    print(("\nrun_pipeline.py <image_size> <batch_size> <number_epochs> \n"))
+if len(sys.argv) !=3:
+    print(("\nrun_pipeline.py <image_size> <batch_size>\n"))
     sys.exit()
 else:
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     image_size = int(sys.argv[1])
     batch_size = int(sys.argv[2])
-    number_epochs = sys.argv[3]
     main()
